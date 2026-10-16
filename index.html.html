@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>قارئ الشعر الفصيح - تقييم وتدريب</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-slate-50 min-h-screen text-slate-800 font-sans">
+    <div class="max-w-4xl mx-auto p-4 sm:p-6">
+        <header class="text-center mb-8">
+            <h1 class="text-3xl font-bold text-indigo-700 mb-2">تطبيق قارئ الشعر الفصيح</h1>
+            <p class="text-slate-600">قارئ تفاعلي لقراءة الشعر بالتشكيل ومقارنة الصوت بدقة وتبيان الأخطاء</p>
+        </header>
+
+        <main class="bg-white rounded-2xl shadow-xl p-6 space-y-6">
+            <!-- اختيار البيت الشعري أو إضافته يدوياً -->
+            <div>
+                <label class="block text-sm font-semibold mb-2">اختر النموذج الجاهز للاطلاع أو اكتب شعرك بنفسك:</label>
+                <select id="poetrySelect" class="w-full p-3 border rounded-xl bg-slate-50 mb-3" onchange="loadPoetry()">
+                    <option value="">-- اضغط هنا لاختيار النموذج الجاهز --</option>
+                    <option value="أي حبٍ ذاكَ قولي / يرتدي ثوبَ الأفولِ / في سماءٍ اعتلاها / كي ينادي بالحلول؟ / قد تخلّى عن ذراه / للفِراق في مُثولِ / ورمانا من سحابٍ / نتردَّى في السهول / فعريْنا من أمانٍ / وأفقنا في ذهولِ / ها حياتي كيف تمضي؟ / كيف تُؤْتَى بالقُبول؟ / ها طريقي كيف أمشي؟ / أنتِ غاياتُ الوصول">قصيدة: أي حبٍ ذاكَ قولي (نموذج إرشادي)</option>
+                </select>
+                
+                <textarea id="poetryText" rows="5" class="w-full p-3 border rounded-xl text-slate-700 focus:ring-2 focus:ring-indigo-500 focus:outline-none" placeholder="انسخ هنا ما تريد من شعر، وافصل بين شطور الأبيات بالعلامة (/ )، ولا تترك كلمة مكتوبة بعضها في شطر والآخر في الشطر الثاني مثل : على عيني كتبت أحبكِ والد/موعُ جعلتُها خطَ الكتاب، اضغط على النموذج بأعلى لترى كيف يمكن أن تضيف الشعر هنا، كذلك احرص أن يكون الشعر عليه ضبط الحركات ( التشكيل )"></textarea>
+            </div>
+
+            <!-- أزرار التحكم والتشغيل -->
+            <div class="flex flex-wrap gap-4 items-center justify-between">
+                <button id="playAudioBtn" onclick="playAudio()" class="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2.5 rounded-xl font-medium transition flex items-center gap-2 shadow-sm">
+                    🔊 الاستماع للنطق الصحيح
+                </button>
+                <button id="recordBtn" onclick="toggleRecording()" class="bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-medium transition flex items-center gap-2 shadow-sm">
+                    🎙️ ابدأ التسجيل الصوتي
+                </button>
+            </div>
+
+            <!-- نتيجة التسجيل والتحليل -->
+            <div id="resultsArea" class="border-t pt-6 hidden space-y-4">
+                <h3 class="text-lg font-bold text-slate-700">نتائج التحليل والمقارنة:</h3>
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-4 text-center">
+                    <div class="bg-indigo-50 p-4 rounded-xl">
+                        <div class="text-sm text-slate-500">نسبة الدقة</div>
+                        <div id="accuracyScore" class="text-2xl font-bold text-indigo-600">0%</div>
+                    </div>
+                    <div class="bg-emerald-50 p-4 rounded-xl">
+                        <div class="text-sm text-slate-500">الكلمات الصحيحة</div>
+                        <div id="correctCount" class="text-2xl font-bold text-emerald-600">0</div>
+                    </div>
+                    <div class="bg-rose-50 p-4 rounded-xl">
+                        <div class="text-sm text-slate-500">الكلمات الخاطئة/المفقودة</div>
+                        <div id="errorCount" class="text-2xl font-bold text-rose-600">0</div>
+                    </div>
+                </div>
+
+                <div>
+                    <h4 class="text-sm font-semibold text-slate-600 mb-2">تفصيل تقييم الكلمات (أخضر: صحيح، أحمر: خطأ أو اختلاف):</h4>
+                    <div id="wordsComparison" class="flex flex-wrap gap-2 p-4 bg-slate-50 rounded-xl border"></div>
+                </div>
+
+                <div id="feedbackText" class="p-4 bg-indigo-50/50 rounded-xl text-sm leading-relaxed border border-indigo-100"></div>
+            </div>
+        </main>
+    </div>
+
+    <script>
+        function loadPoetry() {
+            const select = document.getElementById('poetrySelect');
+            if (select.value) {
+                document.getElementById('poetryText').value = select.value;
+            }
+        }
+
+        let currentUtterance = null;
+
+        function playAudio() {
+            const text = document.getElementById('poetryText').value;
+            if (!text.trim()) {
+                alert('الرجاء إدخال نص شعري أولاً.');
+                return;
+            }
+
+            if (!('speechSynthesis' in window)) {
+                alert('عذراً، متصفحك لا يدعم نطق النصوص.');
+                return;
+            }
+
+            window.speechSynthesis.cancel();
+
+            const cleanTextToSpeak = text.replace(/[\/\,\.\،\؟]/g, ' . ');
+            currentUtterance = new SpeechSynthesisUtterance(cleanTextToSpeak);
+            currentUtterance.lang = 'ar-SA';
+            currentUtterance.rate = 0.9;
+
+            const playBtn = document.getElementById('playAudioBtn');
+            const originalBtnText = playBtn.innerHTML;
+
+            currentUtterance.onstart = function() {
+                playBtn.innerHTML = '⏹️ جاري النطق... (اضغط لإيقافه)';
+            };
+
+            currentUtterance.onend = function() {
+                playBtn.innerHTML = originalBtnText;
+                currentUtterance = null;
+            };
+
+            currentUtterance.onerror = function() {
+                playBtn.innerHTML = originalBtnText;
+                currentUtterance = null;
+                alert('تعذر تشغيل الصوت في هذا المتصفح.');
+            };
+
+            window.speechSynthesis.speak(currentUtterance);
+        }
+
+        let isRecording = false;
+        let shouldKeepListening = false;
+        let recognition = null;
+        let fullTranscript = '';
+
+        function toggleRecording() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            if (!SpeechRecognition) {
+                alert('عذراً، متصفحك لا يدعم التعرف على الصوت. يُرجى استخدام متصفح Google Chrome.');
+                return;
+            }
+
+            if (isRecording) {
+                // إيقاف يدوي عن طريق الضغط على زر الانتهاء
+                shouldKeepListening = false;
+                isRecording = false;
+                if (recognition) {
+                    recognition.stop();
+                }
+                resetRecordButton();
+                if (fullTranscript.trim()) {
+                    analyzeSpeech(fullTranscript);
+                }
+                return;
+            }
+
+            // بدء التسجيل المستمر
+            shouldKeepListening = true;
+            fullTranscript = '';
+            startRecognitionSession();
+        }
+
+        function startRecognitionSession() {
+            const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+            recognition = new SpeechRecognition();
+            recognition.lang = 'ar-SA';
+            recognition.continuous = true; 
+            recognition.interimResults = true;
+
+            const recordBtn = document.getElementById('recordBtn');
+
+            recognition.onstart = function() {
+                isRecording = true;
+                recordBtn.textContent = '🛑 اضغط هنا للانتهاء والتحليل';
+                recordBtn.classList.remove('bg-emerald-600', 'hover:bg-emerald-700');
+                recordBtn.classList.add('bg-rose-600', 'hover:bg-rose-700');
+            };
+
+            recognition.onresult = function(event) {
+                for (let i = event.resultIndex; i < event.results.length; ++i) {
+                    if (event.results[i].isFinal) {
+                        fullTranscript += event.results[i][0].transcript + ' ';
+                    }
+                }
+            };
+
+            recognition.onerror = function(event) {
+                console.error('خطأ في التعرف الصوتي:', event.error);
+            };
+
+            recognition.onend = function() {
+                // إذا توقف المتصفح بسبب الصمت ولم يضغط المستخدم على زر الإنهاء بعد، نعيد تشغيله فوراً في الخلفية
+                if (shouldKeepListening) {
+                    try {
+                        recognition.start();
+                    } catch (e) {
+                        console.error("إعادة تشغيل الاستماع:", e);
+                    }
+                }
+            };
+
+            try {
+                recognition.start();
+            } catch (e) {
+                console.error("بدء التسجيل:", e);
+            }
+        }
+
+        function resetRecordButton() {
+            const recordBtn = document.getElementById('recordBtn');
+            recordBtn.textContent = '🎙️ ابدأ التسجيل الصوتي';
+            recordBtn.classList.remove('bg-rose-600', 'hover:bg-rose-700');
+            recordBtn.classList.add('bg-emerald-600', 'hover:bg-emerald-700');
+        }
+
+        function cleanText(text) {
+            return text.replace(/[\u0617-\u061A\u064B-\u0652]/g, "") 
+                       .replace(/[أإآء]/g, "ا")                      
+                       .replace(/[^\w\sא-تء-ي]/gi, "")              
+                       .trim();
+        }
+
+        function phoneticNormalize(word) {
+            let cleaned = cleanText(word);
+            cleaned = cleaned.replace(/ة$/, 'ه');           
+            cleaned = cleaned.replace(/[ظذز]/g, 'ز');        
+            cleaned = cleaned.replace(/[من]$/, '');         
+            cleaned = cleaned.replace(/ي$/, '');           
+            return cleaned;
+        }
+
+        function analyzeSpeech(userSpeech) {
+            const originalText = document.getElementById('poetryText').value;
+            if (!originalText.trim()) {
+                alert('الرجاء كتابة أو لصق بيت شعر في المربع أولاً.');
+                return;
+            }
+            
+            const origTokens = originalText.split(/\s+/).filter(w => w !== '/' && w.trim() !== '');
+            const rawUserTokens = userSpeech.trim().split(/\s+/).filter(w => w.trim() !== '');
+            const userTokens = [];
+            rawUserTokens.forEach((token, idx) => {
+                if (idx === 0 || token !== rawUserTokens[idx - 1]) {
+                    userTokens.push(token);
+                }
+            });
+
+            let correct = 0;
+            let comparisonHTML = '';
+            let userPtr = 0;
+
+            origTokens.forEach((origWord) => {
+                const cleanOrig = cleanText(origWord);
+                const normOrig = phoneticNormalize(origWord);
+
+                let isMatch = false;
+                let matchedIndex = -1;
+
+                for (let lookAhead = 0; lookAhead < 8; lookAhead++) {
+                    const currentIndex = userPtr + lookAhead;
+                    if (currentIndex < userTokens.length) {
+                        const userWord = userTokens[currentIndex];
+                        const cleanUsr = cleanText(userWord);
+                        const normUsr = phoneticNormalize(userWord);
+
+                        const userWithoutEnding = cleanUsr.replace(/([هة]|و|وا|أو|ي)$/, '');
+                        const normUserWithoutEnding = phoneticNormalize(userWithoutEnding);
+
+                        if (cleanUsr === cleanOrig || normUsr === normOrig ||
+                            userWithoutEnding === cleanOrig || normUserWithoutEnding === normOrig ||
+                            (cleanOrig.length > 3 && cleanUsr.length > 3 && (cleanOrig.startsWith(cleanUsr) || cleanUsr.startsWith(cleanOrig)))) {
+                            
+                            isMatch = true;
+                            matchedIndex = currentIndex;
+                            break;
+                        }
+                    }
+                }
+
+                if (isMatch) {
+                    correct++;
+                    userPtr = matchedIndex + 1;
+                    comparisonHTML += `<span class="px-3 py-1.5 bg-emerald-100 text-emerald-800 rounded-lg text-sm font-medium border border-emerald-200">✅ ${origWord}</span>`;
+                } else {
+                    const currentHeard = userTokens[userPtr] || '';
+                    const heardNote = currentHeard ? `(ما نطقته: ${currentHeard})` : '(مفقودة)';
+                    comparisonHTML += `<span class="px-3 py-1.5 bg-rose-100 text-rose-800 rounded-lg text-sm font-medium border border-rose-200" title="خطأ">❌ ${origWord} <span class="text-xs text-rose-600 font-bold block">${heardNote}</span></span>`;
+                }
+            });
+
+            const total = origTokens.length;
+            const errors = Math.max(0, total - correct);
+            const accuracy = Math.min(100, Math.round((correct / total) * 100));
+
+            document.getElementById('resultsArea').classList.remove('hidden');
+            document.getElementById('accuracyScore').textContent = accuracy + '%';
+            document.getElementById('correctCount').textContent = correct;
+            document.getElementById('errorCount').textContent = errors;
+            document.getElementById('wordsComparison').innerHTML = comparisonHTML;
+
+            let feedback = `<strong>ما قمت بنطقه:</strong> "${userTokens.join(' ')}"<br><br>`;
+            if (accuracy >= 85) {
+                feedback += `<span class="text-emerald-600 font-bold">تقييم ممتاز! أداؤك الصوتي رائع ونطقك سليم تماماً.</span>`;
+            } else if (accuracy >= 50) {
+                feedback += `<span class="text-amber-600 font-bold">مستوى جيد، راجع الكلمات المحددة باللون الأحمر.</span>`;
+            } else {
+                feedback += `<span class="text-rose-600 font-bold">يحتاج إلى تدريب أكثر، استمع للنطق الصحيح ثم أعد المحاولة.</span>`;
+            }
+            document.getElementById('feedbackText').innerHTML = feedback;
+        }
+    </script>
+</body>
+</html>
